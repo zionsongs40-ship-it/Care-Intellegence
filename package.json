@@ -1,0 +1,25 @@
+{
+  "name": "hospital-ai-app",
+  "version": "1.0.0",
+  "description": "Hospital appointment and doctor scheduling prototype",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js",
+    "seed:demo": "node scripts/seed-demo.js",
+    "reset:demo-password": "node scripts/reset-demo-password.js",
+    "test": "node --test --test-concurrency=1"
+  },
+  "engines": {
+    "node": ">=22.13.0"
+  },
+  "dependencies": {
+    "exceljs": "^4.4.0",
+    "express": "^4.19.2",
+    "express-rate-limit": "^8.7.0",
+    "helmet": "^8.3.0"
+  },
+  "overrides": {
+    "uuid": "^11.1.1"
+  }
+}

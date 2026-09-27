@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Doctor registration | CI Care Intelligence</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <main class="auth-shell">
+      <section class="auth-card" style="width:min(100%, 720px)">
+        <a class="brand" href="/" aria-label="CI Care Intelligence home"><img class="brand-logo" src="/logo.png" alt="" /><span>Care Intelligence · Doctor</span></a>
+        <p class="eyebrow" style="margin-top:24px">Join a hospital team</p>
+        <h1>Doctor registration</h1>
+        <p class="muted">Create your account and add your regular weekly clinic schedule. The hospital administrator must approve your account before you can sign in or receive bookings.</p>
+        <form id="registerForm" class="form-grid">
+          <div class="field"><label for="name">Full name</label><input id="name" name="name" autocomplete="name" maxlength="120" required /></div>
+          <div class="field"><label for="email">Work email</label><input id="email" name="email" type="email" autocomplete="email" required /></div>
+          <div class="field"><label for="password">Password</label><input id="password" name="password" type="password" autocomplete="new-password" minlength="8" required /></div>
+          <div class="field"><label for="hospitalName">Hospital</label><select id="hospitalName" name="hospitalName" required><option value="">Loading hospitals…</option></select></div>
+          <div class="field"><label for="department">Department</label><select id="department" name="department" required>
+            <option>Cardiology</option><option>Neurology</option><option>Orthopedics</option><option>Pediatrics</option><option>OB/GYN</option><option>Oncology</option><option>General Surgery</option><option>Emergency Department (Casualty)</option><option>General Medicine</option>
+          </select></div>
+          <div class="field"><label for="specialty">Specialty</label><input id="specialty" name="specialty" maxlength="120" required /></div>
+          <div class="field"><label for="qualifications">Qualifications</label><input id="qualifications" name="qualifications" maxlength="240" placeholder="MBBS, MD" required /></div>
+          <div class="field"><label for="phoneNumber">Phone number</label><input id="phoneNumber" name="phoneNumber" type="tel" maxlength="20" required /></div>
+          <div class="field"><label for="gender">Gender</label><select id="gender" name="gender" required><option>Female</option><option>Male</option><option>Other</option><option>Prefer not to say</option></select></div>
+          <div class="field"><label for="age">Age</label><input id="age" name="age" type="number" min="21" max="100" required /></div>
+          <div class="field"><label for="workExperience">Experience (years)</label><input id="workExperience" name="workExperience" type="number" min="0" max="80" required /></div>
+          <div class="field"><label for="profilePhoto">Profile photo (PNG, JPEG, WebP; max 1 MB)</label><input id="profilePhoto" name="profilePhoto" type="file" accept="image/png,image/jpeg,image/webp" required /></div>
+          <fieldset class="field full" style="border:0;padding:0">
+            <legend><strong>Weekly availability</strong></legend>
+            <p class="muted">Appointments are offered every 30 minutes during each saved time range.</p>
+            <div class="form-grid">
+              <div class="field"><label for="scheduleDay">Day</label><select id="scheduleDay"><option>Monday</option><option>Tuesday</option><option>Wednesday</option><option>Thursday</option><option>Friday</option><option>Saturday</option><option>Sunday</option></select></div>
+              <div class="field"><label for="scheduleStart">Start</label><input id="scheduleStart" type="time" /></div>
+              <div class="field"><label for="scheduleEnd">End</label><input id="scheduleEnd" type="time" /></div>
+              <div class="field" style="align-self:end"><button id="addSchedule" class="secondary" type="button">Add time range</button></div>
+            </div>
+            <div id="scheduleList" class="doctor-list" aria-live="polite"></div>
+          </fieldset>
+          <div class="field full"><button id="submitButton" type="submit">Submit registration</button></div>
+        </form>
+        <p id="message" class="form-message" role="status"></p>
+        <p class="switch">Already registered? <a href="/doctor-login">Sign in</a></p>
+      </section>
+    </main>
+    <script src="/app.js"></script>
+    <script>
+      const form = document.getElementById('registerForm');
+      const message = document.getElementById('message');
+      const submitButton = document.getElementById('submitButton');
+      const scheduleList = document.getElementById('scheduleList');
+      const scheduleRanges = [];
+
+      async function loadHospitals() {
+        const select = document.getElementById('hospitalName');
+        try {
+          const hospitals = await apiRequest('/api/hospitals');
+          select.replaceChildren();
+          if (!hospitals.length) {
+            const option = document.createElement('option');
+            option.value = '';
+            option.textContent = 'No registered hospitals yet';
+            select.append(option);
+            showMessage(message, 'A hospital must register before a doctor can join.', true);
+            return;
+          }
+          for (const hospital of hospitals) {
+            const option = document.createElement('option');
+            option.value = hospital.hospitalName;
+            option.textContent = hospital.hospitalName;
+            select.append(option);
+          }
+        } catch (error) {
+          showMessage(message, error.message, true);
+        }
+      }
+
+      function slotsFor(start, end) {
+        const slots = [];
+        let minutes = Number(start.slice(0, 2)) * 60 + Number(start.slice(3));
+        const endMinutes = Number(end.slice(0, 2)) * 60 + Number(end.slice(3));
+        while (minutes < endMinutes) {
+          slots.push(`${String(Math.floor(minutes / 60)).padStart(2, '0')}:${String(minutes % 60).padStart(2, '0')}`);
+          minutes += 30;
+        }
+        return slots;
+      }
+
+      function renderSchedule() {
+        scheduleList.replaceChildren();
+        if (!scheduleRanges.length) {
+          addText(scheduleList, 'p', 'No availability added yet.', 'muted');
+          return;
+        }
+        scheduleRanges.forEach((range, index) => {
+          const item = document.createElement('div');
+          item.className = 'doctor-item';
+          addText(item, 'span', `${range.day}: ${range.start}–${range.end}`);
+          const remove = document.createElement('button');
+          remove.type = 'button';
+          remove.className = 'secondary';
+          remove.textContent = 'Remove';
+          remove.addEventListener('click', () => {
+            scheduleRanges.splice(index, 1);
+            renderSchedule();
+          });
+          item.append(remove);
+          scheduleList.append(item);
+        });
+      }
+
+      document.getElementById('addSchedule').addEventListener('click', () => {
+        const day = document.getElementById('scheduleDay').value;
+        const start = document.getElementById('scheduleStart').value;
+        const end = document.getElementById('scheduleEnd').value;
+        if (!start || !end || start >= end) {
+          showMessage(message, 'Choose a valid start and end time.', true);
+          return;
+        }
+        if (scheduleRanges.some(range => range.day === day && start < range.end && end > range.start)) {
+          showMessage(message, 'This range overlaps another saved range for the same day.', true);
+          return;
+        }
+        scheduleRanges.push({ day, start, end });
+        scheduleRanges.sort((a, b) => a.day.localeCompare(b.day) || a.start.localeCompare(b.start));
+        renderSchedule();
+        showMessage(message, '');
+      });
+
+      function readImage(file) {
+        return new Promise((resolve, reject) => {
+          if (!['image/png', 'image/jpeg', 'image/webp'].includes(file.type) || file.size > 1024 * 1024) {
+            reject(new Error('Choose a PNG, JPEG, or WebP image smaller than 1 MB.'));
+            return;
+          }
+          const reader = new FileReader();
+          reader.onload = () => resolve(reader.result);
+          reader.onerror = () => reject(new Error('Could not read the selected image.'));
+          reader.readAsDataURL(file);
+        });
+      }
+
+      form.addEventListener('submit', async event => {
+        event.preventDefault();
+        if (!scheduleRanges.length) {
+          showMessage(message, 'Add at least one weekly availability range.', true);
+          return;
+        }
+        submitButton.disabled = true;
+        showMessage(message, 'Submitting registration…');
+        try {
+          const formData = new FormData(form);
+          const schedule = scheduleRanges.map(range => ({
+            day: range.day,
+            slots: slotsFor(range.start, range.end),
+          }));
+          const profilePhoto = await readImage(document.getElementById('profilePhoto').files[0]);
+          const result = await apiRequest('/api/doctors/register', {
+            method: 'POST',
+            body: JSON.stringify({
+              name: formData.get('name'),
+              email: formData.get('email'),
+              password: formData.get('password'),
+              department: formData.get('department'),
+              specialty: formData.get('specialty'),
+              qualifications: formData.get('qualifications'),
+              phoneNumber: formData.get('phoneNumber'),
+              gender: formData.get('gender'),
+              age: Number(formData.get('age')),
+              workExperience: Number(formData.get('workExperience')),
+              profilePhoto,
+              schedule,
+              hospitalName: formData.get('hospitalName'),
+            }),
+          });
+          showMessage(message, result.message);
+          form.reset();
+          scheduleRanges.length = 0;
+          renderSchedule();
+        } catch (error) {
+          showMessage(message, error.message, true);
+        } finally {
+          submitButton.disabled = false;
+        }
+      });
+
+      renderSchedule();
+      loadHospitals();
+    </script>
+  </body>
+</html>

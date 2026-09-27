@@ -1,0 +1,421 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#0d5b54" />
+    <title>Patient appointment booking | CI Care Intelligence</title>
+    <style>
+      :root {
+        color-scheme: light;
+        font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        color: #172c32;
+        background: #f3f7f6;
+      }
+      * { box-sizing: border-box; }
+      body { margin: 0; }
+      .shell { max-width: 1160px; margin: 0 auto; padding: 36px 24px 64px; }
+      .topline { display: flex; justify-content: space-between; align-items: center; margin-bottom: 28px; }
+      .brand { display: inline-flex; align-items: center; gap: 10px; color: #0d5b54; font-size: 19px; font-weight: 800; letter-spacing: -.04em; text-decoration: none; }
+      .brand-logo { display: block; width: 42px; height: 42px; flex: 0 0 auto; border-radius: 10px; object-fit: cover; }
+      .nav { display: flex; gap: 20px; }
+      .nav a { color: #456067; font-size: 14px; font-weight: 650; text-decoration: none; }
+      .intro { display: grid; grid-template-columns: 1fr minmax(240px, 350px); gap: 30px; align-items: end; margin-bottom: 26px; }
+      .eyebrow { color: #0d766b; font-size: 12px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; }
+      h1 { margin: 8px 0 10px; font-size: clamp(30px, 5vw, 44px); letter-spacing: -.055em; line-height: 1.08; }
+      .intro p { max-width: 670px; margin: 0; color: #5d7176; line-height: 1.65; }
+      .emergency-callout { border: 1px solid #f1c2b8; border-radius: 14px; background: #fff4f1; padding: 16px 18px; color: #7d3023; font-size: 13px; line-height: 1.55; }
+      .emergency-callout strong { display: block; margin-bottom: 4px; color: #a23725; font-size: 14px; }
+      .emergency-callout button { width: 100%; margin-top: 12px; min-height: 44px; border: 0; border-radius: 10px; background: #a23725; color: #fff; cursor: pointer; font: inherit; font-weight: 750; padding: 10px 14px; }
+      .emergency-callout button:hover { background: #842e22; }
+      .emergency-result { margin-top: 10px; }
+      .emergency-result:empty { display: none; }
+      .emergency-result a { overflow-wrap: anywhere; }
+      .layout { display: grid; grid-template-columns: minmax(0, 1.55fr) minmax(280px, .8fr); gap: 20px; align-items: start; }
+      .card { border: 1px solid #e2ebe8; border-radius: 18px; background: #fff; box-shadow: 0 12px 36px rgba(23, 55, 54, .055); }
+      .form-card { padding: 26px; }
+      .card-heading { margin-bottom: 23px; }
+      h2 { margin: 0 0 6px; font-size: 20px; letter-spacing: -.03em; }
+      .muted { margin: 0; color: #708287; font-size: 13px; line-height: 1.55; }
+      form { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px 16px; }
+      .field { min-width: 0; }
+      .full { grid-column: 1 / -1; }
+      label, legend { display: block; margin-bottom: 7px; color: #334e54; font-size: 13px; font-weight: 700; }
+      .required { color: #b54736; }
+      input, select, textarea { width: 100%; min-height: 44px; border: 1px solid #d7e2df; border-radius: 10px; outline: none; background: #fff; padding: 10px 12px; color: #203b40; font: inherit; font-size: 14px; }
+      textarea { min-height: 98px; resize: vertical; }
+      input:focus, select:focus, textarea:focus { border-color: #168477; box-shadow: 0 0 0 3px rgba(22, 132, 119, .12); }
+      fieldset { min-width: 0; margin: 0; padding: 0; border: 0; }
+      .check-row { display: flex; align-items: center; gap: 10px; margin: 2px 0 0; }
+      .check-row input { width: 17px; min-height: 17px; height: 17px; margin: 0; accent-color: #0d766b; }
+      .check-row label { margin: 0; }
+      .guardian-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; margin-top: 16px; }
+      .hint { margin: 6px 0 0; color: #788b8e; font-size: 12px; line-height: 1.45; }
+      button { min-height: 48px; border: 0; border-radius: 11px; background: #0d6b60; color: #fff; cursor: pointer; font: inherit; font-size: 14px; font-weight: 750; }
+      button:hover { background: #09584f; }
+      button:disabled { cursor: wait; opacity: .7; }
+      .result-card { position: sticky; top: 20px; padding: 23px; }
+      .result-box { margin-top: 18px; border: 1px dashed #cddbd8; border-radius: 12px; background: #f8fbfa; padding: 16px; color: #65797d; font-size: 14px; line-height: 1.55; }
+      .result-box h3 { margin: 12px 0 8px; color: #193b3d; font-size: 19px; }
+      .result-box p { margin: 7px 0; }
+      .badge { display: inline-block; border-radius: 999px; background: #e4f4ee; padding: 5px 10px; color: #17634d; font-size: 11px; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; }
+      .badge.emergency { background: #ffe5df; color: #a23725; }
+      .safety-note { margin-top: 16px; border-radius: 11px; background: #f1f6f5; padding: 13px; color: #597075; font-size: 12px; line-height: 1.55; }
+      .departments { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 12px; }
+      .departments span { border-radius: 999px; background: #f0f5f4; padding: 5px 9px; color: #52696c; font-size: 11px; }
+      @media (max-width: 800px) {
+        .intro, .layout { grid-template-columns: 1fr; }
+        .result-card { position: static; }
+      }
+      @media (max-width: 520px) {
+        .shell { padding: 22px 14px 40px; }
+        .topline { align-items: center; flex-wrap: wrap; gap: 8px 12px; }
+        .brand { font-size: 17px; }
+        .brand-logo { width: 38px; height: 38px; }
+        .nav { width: 100%; flex-wrap: wrap; justify-content: flex-start; gap: 4px 16px; }
+        .nav a { display: inline-flex; min-height: 40px; align-items: center; }
+        .form-card { padding: 20px 16px; }
+        input, select, textarea { font-size: 16px; }
+        form, .guardian-fields { grid-template-columns: 1fr; }
+        .full { grid-column: auto; }
+      }
+      @media (max-width: 360px) {
+        .shell { padding-right: 12px; padding-left: 12px; }
+        .form-card { padding: 16px 14px; }
+        .result-card { padding: 18px; }
+      }
+      @media (max-height: 500px) and (orientation: landscape) {
+        .shell { padding-top: 14px; }
+        .result-card { position: static; }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="shell">
+      <div class="topline">
+        <a class="brand" href="/" aria-label="CI Care Intelligence home"><img class="brand-logo" src="/logo.png" alt="" /><span>Care Intelligence</span></a>
+        <nav class="nav" aria-label="Main navigation">
+          <a href="/">Home</a>
+          <a href="/doctor-login">Doctor</a>
+          <a href="/hospital-login">Hospital</a>
+        </nav>
+      </div>
+
+      <section class="intro" aria-labelledby="page-title">
+        <div>
+          <div class="eyebrow">Patient services</div>
+          <h1 id="page-title">Book the right care, with less waiting.</h1>
+          <p>Share your visit details to be routed to a suitable department and an available doctor. Emergency symptoms are directed to the casualty department first.</p>
+        </div>
+        <div id="emergency" class="emergency-callout" role="note">
+          <strong>Having a medical emergency?</strong>
+          Call your local emergency number or go to the nearest emergency department now. Do not wait for an online booking or reply.
+          <button id="nearestHospitalButton" type="button">Find nearest registered hospital</button>
+          <p class="hint">Your browser will ask permission to use your location for this search. It is not saved.</p>
+          <div id="nearestHospitalResult" class="emergency-result" role="status" aria-live="polite"></div>
+        </div>
+      </section>
+
+      <div class="layout">
+        <section class="card form-card" aria-labelledby="form-title">
+          <div class="card-heading">
+            <h2 id="form-title">Patient registration</h2>
+            <p class="muted">Fields marked <span class="required">*</span> are required. Your details are used to arrange this visit.</p>
+          </div>
+          <form id="bookingForm">
+            <div class="field">
+              <label for="name">Patient full name <span class="required">*</span></label>
+              <input id="name" name="name" autocomplete="name" maxlength="120" required />
+            </div>
+            <div class="field">
+              <label for="age">Age <span class="required">*</span></label>
+              <input id="age" name="age" type="number" min="0" max="130" step="1" required />
+            </div>
+            <div class="field">
+              <label for="gender">Gender <span class="required">*</span></label>
+              <select id="gender" name="gender" required>
+                <option value="">Select an option</option>
+                <option>Female</option>
+                <option>Male</option>
+                <option>Other</option>
+                <option>Prefer not to say</option>
+              </select>
+            </div>
+            <div class="field">
+              <label for="phone">Patient contact number <span class="required">*</span></label>
+              <input id="phone" name="phone" type="tel" autocomplete="tel" maxlength="20" required />
+            </div>
+            <div class="field full">
+              <label for="hospitalName">Hospital <span class="required">*</span></label>
+              <select id="hospitalName" name="hospitalName" required>
+                <option value="">Loading registered hospitals...</option>
+              </select>
+              <p class="hint">Choose the hospital where you want to receive care.</p>
+            </div>
+            <div class="field full">
+              <fieldset>
+                <legend>Is a guardian accompanying the patient?</legend>
+                <div class="check-row">
+                  <input id="guardianAccompanying" name="guardianAccompanying" type="checkbox" />
+                  <label for="guardianAccompanying">Yes, a guardian will accompany the patient</label>
+                </div>
+                <div id="guardianFields" class="guardian-fields" hidden>
+                  <div class="field">
+                    <label for="guardianName">Guardian full name <span class="required">*</span></label>
+                    <input id="guardianName" name="guardianName" autocomplete="off" maxlength="120" disabled />
+                  </div>
+                  <div class="field">
+                    <label for="guardianAge">Guardian age <span class="required">*</span></label>
+                    <input id="guardianAge" name="guardianAge" type="number" min="1" max="130" step="1" disabled />
+                  </div>
+                  <div class="field">
+                    <label for="guardianPhone">Guardian phone number <span class="required">*</span></label>
+                    <input id="guardianPhone" name="guardianPhone" type="tel" maxlength="20" disabled />
+                  </div>
+                </div>
+              </fieldset>
+            </div>
+            <div class="field full">
+              <label for="disease">Disease, symptoms, or reason for visit <span class="required">*</span></label>
+              <input id="disease" name="disease" maxlength="500" required placeholder="For example: knee pain, a routine checkup, or a blood test" />
+              <p class="hint">Describe what you know in your own words. Department suggestions are automated and are not a diagnosis.</p>
+            </div>
+            <div class="field">
+              <label for="purpose">Purpose of visit <span class="required">*</span></label>
+              <select id="purpose" name="purpose" required>
+                <option value="">Select a visit type</option>
+                <option>Regular checkup</option>
+                <option>Blood test</option>
+                <option>Treatment</option>
+                <option>Operation</option>
+              </select>
+            </div>
+            <div class="field">
+              <label for="date">Preferred appointment date <span class="required">*</span></label>
+              <input id="date" name="date" type="date" required />
+            </div>
+            <div class="field full">
+              <label for="notes">Additional notes <span class="muted">(optional)</span></label>
+              <textarea id="notes" name="notes" maxlength="2000" placeholder="Anything else the care team should know about this visit?"></textarea>
+            </div>
+            <div class="field full">
+              <button id="submitButton" type="submit">Find a department and book</button>
+            </div>
+          </form>
+        </section>
+
+        <aside class="card result-card" aria-labelledby="result-title">
+          <h2 id="result-title">Your appointment</h2>
+          <p class="muted">Your department and doctor will appear here after you submit the form.</p>
+          <div id="result" class="result-box" aria-live="polite" aria-atomic="true">Complete the registration form to get started.</div>
+          <div class="safety-note">
+            This prototype uses symptom keywords to suggest a department; it does not diagnose, replace clinical triage, or assess the severity of an illness. Hospital staff must review emergency and high-risk cases.
+            <div class="departments" aria-label="Supported departments">
+              <span>Casualty</span><span>Cardiology</span><span>Neurology</span><span>Orthopedics</span>
+              <span>Pediatrics</span><span>OB/GYN</span><span>Oncology</span><span>General Surgery</span>
+              <span>General Medicine</span>
+            </div>
+          </div>
+        </aside>
+      </div>
+    </main>
+
+    <script>
+      const form = document.getElementById('bookingForm');
+      const resultBox = document.getElementById('result');
+      const submitButton = document.getElementById('submitButton');
+      const guardianCheckbox = document.getElementById('guardianAccompanying');
+      const guardianFields = document.getElementById('guardianFields');
+      const guardianInputs = guardianFields.querySelectorAll('input');
+      const appointmentDate = document.getElementById('date');
+      const hospitalSelect = document.getElementById('hospitalName');
+      const nearestHospitalButton = document.getElementById('nearestHospitalButton');
+      const nearestHospitalResult = document.getElementById('nearestHospitalResult');
+      const today = new Date();
+      const localToday = new Date(today.getTime() - today.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
+      appointmentDate.min = localToday;
+      appointmentDate.value = localToday;
+      async function loadHospitals() {
+        hospitalSelect.disabled = true;
+        try {
+          const response = await fetch('/api/hospitals');
+          const hospitals = await response.json();
+          if (!response.ok) throw new Error(hospitals.message || 'Could not load registered hospitals.');
+          hospitalSelect.replaceChildren();
+          const placeholder = document.createElement('option');
+          placeholder.value = '';
+          placeholder.textContent = hospitals.length ? 'Select a hospital' : 'No hospitals currently registered';
+          hospitalSelect.append(placeholder);
+          for (const hospital of hospitals) {
+            const option = document.createElement('option');
+            option.value = hospital.hospitalName;
+            option.textContent = hospital.hospitalName;
+            hospitalSelect.append(option);
+          }
+          hospitalSelect.disabled = hospitals.length === 0;
+          if (hospitals.length === 1) hospitalSelect.value = hospitals[0].hospitalName;
+          if (!hospitals.length) {
+            resultBox.replaceChildren();
+            addResultText(resultBox, 'p', 'This hospital has not completed setup yet. Ask the hospital administrator to sign in and complete the initial setup.');
+            const registerLink = document.createElement('a');
+            registerLink.href = '/hospital-login';
+            registerLink.textContent = 'Hospital administrator sign in';
+            resultBox.append(registerLink);
+          }
+        } catch (error) {
+          hospitalSelect.replaceChildren();
+          const option = document.createElement('option');
+          option.value = '';
+          option.textContent = 'Hospitals could not be loaded';
+          hospitalSelect.append(option);
+          resultBox.textContent = error.message;
+        }
+      }
+
+      loadHospitals();
+
+      nearestHospitalButton.addEventListener('click', () => {
+        nearestHospitalResult.replaceChildren();
+        if (!navigator.geolocation) {
+          nearestHospitalResult.textContent = 'Location services are unavailable in this browser. Call your local emergency number or go to the nearest emergency department.';
+          return;
+        }
+
+        nearestHospitalButton.disabled = true;
+        nearestHospitalButton.textContent = 'Finding nearby hospital…';
+        nearestHospitalResult.textContent = 'Your location is requested only for this search and is not saved.';
+        navigator.geolocation.getCurrentPosition(async position => {
+          try {
+            const query = new URLSearchParams({
+              latitude: String(position.coords.latitude),
+              longitude: String(position.coords.longitude),
+            });
+            const response = await fetch(`/api/hospitals/nearest?${query}`);
+            const hospital = await response.json();
+            if (!response.ok) throw new Error(hospital.message || 'Could not find a nearby hospital.');
+
+            nearestHospitalResult.replaceChildren();
+            addResultText(nearestHospitalResult, 'strong', `${hospital.hospitalName} · ${hospital.distanceKilometers} km away`);
+            addResultText(nearestHospitalResult, 'p', hospital.address);
+            if (hospital.phoneNumber) {
+              const callLink = document.createElement('a');
+              callLink.href = `tel:${hospital.phoneNumber.replace(/[^\d+]/g, '')}`;
+              callLink.textContent = `Call ${hospital.phoneNumber}`;
+              nearestHospitalResult.append(callLink);
+            } else {
+              addResultText(nearestHospitalResult, 'p', 'This hospital has no valid phone number registered.');
+            }
+            if (hospital.mapLocation) {
+              const mapLink = document.createElement('a');
+              mapLink.href = hospital.mapLocation;
+              mapLink.target = '_blank';
+              mapLink.rel = 'noopener noreferrer';
+              mapLink.textContent = ' · Directions';
+              nearestHospitalResult.append(mapLink);
+            }
+          } catch (error) {
+            nearestHospitalResult.textContent = `${error.message} If this is an emergency, call your local emergency number now.`;
+          } finally {
+            nearestHospitalButton.disabled = false;
+            nearestHospitalButton.textContent = 'Find nearest registered hospital';
+          }
+        }, error => {
+          const messages = {
+            1: 'Location access was denied.',
+            2: 'Your current location could not be determined.',
+            3: 'The location request timed out.',
+          };
+          nearestHospitalResult.textContent = `${messages[error.code] || 'Your location is unavailable.'} Allow location access or call your local emergency number.`;
+          nearestHospitalButton.disabled = false;
+          nearestHospitalButton.textContent = 'Find nearest registered hospital';
+        }, { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 });
+      });
+
+      guardianCheckbox.addEventListener('change', () => {
+        guardianFields.hidden = !guardianCheckbox.checked;
+        guardianInputs.forEach(input => {
+          input.disabled = !guardianCheckbox.checked;
+          input.required = guardianCheckbox.checked;
+          if (!guardianCheckbox.checked) input.value = '';
+        });
+      });
+
+      function addResultText(parent, tag, text) {
+        const element = document.createElement(tag);
+        element.textContent = text;
+        parent.append(element);
+      }
+
+      form.addEventListener('submit', async event => {
+        event.preventDefault();
+        submitButton.disabled = true;
+        submitButton.textContent = 'Finding an available doctor...';
+        resultBox.textContent = 'Submitting your booking details...';
+
+        const formData = new FormData(form);
+        const payload = {
+          name: formData.get('name'),
+          age: Number(formData.get('age')),
+          gender: formData.get('gender'),
+          phone: formData.get('phone'),
+          hospitalName: formData.get('hospitalName'),
+          guardianAccompanying: guardianCheckbox.checked,
+          guardianName: formData.get('guardianName') || '',
+          guardianPhone: formData.get('guardianPhone') || '',
+          guardianAge: Number(formData.get('guardianAge')) || null,
+          disease: formData.get('disease'),
+          purpose: formData.get('purpose'),
+          date: formData.get('date'),
+          notes: formData.get('notes')
+        };
+
+        try {
+          const response = await fetch('/api/triage', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+          });
+          const data = await response.json();
+          if (!response.ok) throw new Error(data.message || 'Could not book this appointment.');
+
+          resultBox.replaceChildren();
+          const badge = document.createElement('span');
+          badge.className = `badge${data.priority === 'Emergency' ? ' emergency' : ''}`;
+          badge.textContent = data.priority;
+          resultBox.append(badge);
+          addResultText(resultBox, 'h3', data.department);
+          addResultText(resultBox, 'p', `Hospital: ${data.hospitalName}`);
+          addResultText(resultBox, 'p', `Your assigned doctor: ${data.recommendedDoctor}`);
+          addResultText(resultBox, 'p', `Date and time: ${data.date} at ${data.timeSlot}`);
+          window.dispatchEvent(new CustomEvent('appointment-booked', { detail: data }));
+          if (data.referralDepartment) {
+            addResultText(resultBox, 'p', `Further specialist assessment may be needed: ${data.referralDepartment}`);
+          }
+          if (data.emergencyAdvice) {
+            const warning = document.createElement('p');
+            warning.setAttribute('role', 'alert');
+            warning.textContent = data.emergencyAdvice;
+            resultBox.append(warning);
+          } else {
+            addResultText(resultBox, 'p', 'Your appointment request has been recorded for the hospital.');
+          }
+          form.reset();
+          guardianFields.hidden = true;
+          guardianInputs.forEach(input => {
+            input.disabled = true;
+            input.required = false;
+          });
+          appointmentDate.min = localToday;
+          appointmentDate.value = localToday;
+        } catch (error) {
+          resultBox.replaceChildren();
+          addResultText(resultBox, 'p', error.message || 'Could not submit the appointment. Please try again.');
+        } finally {
+          submitButton.disabled = false;
+          submitButton.textContent = 'Find a department and book';
+        }
+      });
+    </script>
+    <script src="/customer-assistant.js"></script>
+  </body>
+</html>
