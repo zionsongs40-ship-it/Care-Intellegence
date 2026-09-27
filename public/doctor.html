@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Doctor dashboard | CI Care Intelligence</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <div class="topbar-inner">
+        <a class="brand" href="/" aria-label="CI Care Intelligence home"><img class="brand-logo" src="/logo.png" alt="" /><span>Care Intelligence · Doctor</span></a>
+        <nav class="nav" aria-label="Main navigation">
+          <a href="/">Home</a><a href="/booking">Patient booking</a><a href="/hospital">Hospital portal</a>
+          <span id="signOut"></span>
+        </nav>
+      </div>
+    </header>
+    <main class="page">
+      <section class="page-heading">
+        <div><div class="eyebrow">Clinical workspace</div><h1 id="welcome">Doctor dashboard</h1><p id="specialty" class="muted">Your assigned schedule and patient queue.</p></div>
+      </section>
+      <section id="summary" class="grid" aria-label="Appointment summary"></section>
+      <section class="card" style="margin-top:18px">
+        <div class="page-heading">
+          <div><h2>My appointments</h2><p class="muted">Emergency and urgent cases appear first.</p></div>
+          <button id="refresh" class="secondary" type="button">Refresh queue</button>
+        </div>
+        <div id="status" class="notice" role="status" hidden></div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Patient</th><th>Contact</th><th>Guardian</th><th>Reason</th><th>Department</th><th>Priority</th><th>Date &amp; time</th></tr></thead>
+            <tbody id="appointments"></tbody>
+          </table>
+        </div>
+      </section>
+      <p class="muted">Patient records shown here are limited to appointments assigned to your account. Confirm clinical urgency using hospital protocol.</p>
+    </main>
+    <script src="/app.js"></script>
+    <script>
+      const summary = document.getElementById('summary');
+      const appointmentBody = document.getElementById('appointments');
+      const status = document.getElementById('status');
+
+      function addStat(label, value) {
+        const card = document.createElement('article');
+        card.className = 'card';
+        addText(card, 'div', label, 'stat-label');
+        addText(card, 'div', value, 'stat-value');
+        summary.append(card);
+      }
+
+      async function loadDoctorData() {
+        status.hidden = true;
+        const [session, data] = await Promise.all([
+          apiRequest('/api/session'),
+          apiRequest('/api/appointments'),
+        ]);
+        if (session.role !== 'doctor') {
+          await signOut();
+          return;
+        }
+        document.getElementById('welcome').textContent = `Welcome, ${session.user.name}`;
+        document.getElementById('specialty').textContent = `${session.user.department} · ${session.user.specialty}`;
+        document.getElementById('signOut').replaceChildren();
+        addSignOutButton(document.getElementById('signOut'));
+
+        summary.replaceChildren();
+        addStat('Assigned appointments', data.length);
+        addStat('Emergency cases', data.filter(item => item.priority === 'Emergency').length);
+        addStat('Urgent cases', data.filter(item => item.priority === 'Urgent').length);
+        addStat('Routine cases', data.filter(item => item.priority === 'Routine').length);
+
+        appointmentBody.replaceChildren();
+        if (!data.length) {
+          const row = appointmentBody.insertRow();
+          const cell = row.insertCell();
+          cell.colSpan = 7;
+          cell.className = 'empty';
+          cell.textContent = 'No appointments have been assigned to you yet.';
+          return;
+        }
+        for (const item of data) {
+          const row = appointmentBody.insertRow();
+          addText(row.insertCell(), 'span', item.patient);
+          addText(row.insertCell(), 'span', item.patientContact ? `${item.patientContact.phone} · age ${item.patientContact.age}` : '—');
+          addText(row.insertCell(), 'span', item.guardianAccompanying && item.guardian
+            ? `${item.guardian.name} · age ${item.guardian.age} · ${item.guardian.phone}`
+            : 'None');
+          const reason = `${item.disease} · ${item.purpose}${item.notes ? ` · Notes: ${item.notes}` : ''}`;
+          addText(row.insertCell(), 'span', reason);
+          addText(row.insertCell(), 'span', item.department);
+          addText(row.insertCell(), 'span', item.priority, `badge ${item.priority.toLowerCase()}`);
+          addText(row.insertCell(), 'span', `${item.date} · ${item.timeSlot}`);
+        }
+      }
+
+      document.getElementById('refresh').addEventListener('click', () => loadDoctorData().catch(error => {
+        status.hidden = false;
+        status.className = 'notice error';
+        status.textContent = error.message;
+      }));
+      loadDoctorData().catch(error => {
+        status.hidden = false;
+        status.className = 'notice error';
+        status.textContent = error.message;
+      });
+    </script>
+  </body>
+</html>
