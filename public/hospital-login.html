@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Hospital sign in | CI Care Intelligence</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <main class="auth-shell">
+      <section class="auth-card">
+        <a class="brand" href="/" aria-label="CI Care Intelligence home"><img class="brand-logo" src="/logo.png" alt="" /><span>Care Intelligence · Hospital</span></a>
+        <p class="eyebrow" style="margin-top:24px">Operations portal</p>
+        <h1>Hospital admin sign in</h1>
+        <p class="muted">This CI project has one hospital. Enter its admin password to manage the doctor roster and appointment queue.</p>
+        <form id="loginForm">
+          <div><label for="password">Hospital admin password</label><input id="password" name="password" type="password" autocomplete="current-password" required /></div>
+          <button id="submitButton" type="submit">Sign in</button>
+        </form>
+        <p id="message" class="form-message" role="status"></p>
+        <p id="firstHospitalSetup" class="switch" hidden>Initial setup only: <a href="/hospital-register">Register this hospital</a></p>
+        <p class="switch"><a href="/">Return to home</a></p>
+      </section>
+    </main>
+    <script src="/app.js"></script>
+    <script>
+      const form = document.getElementById('loginForm');
+      const message = document.getElementById('message');
+      const submitButton = document.getElementById('submitButton');
+      apiRequest('/api/hospitals')
+        .then(hospitals => {
+          if (!hospitals.length) document.getElementById('firstHospitalSetup').hidden = false;
+        })
+        .catch(error => showMessage(message, `Unable to check hospital setup: ${error.message}`, true));
+      form.addEventListener('submit', async event => {
+        event.preventDefault();
+        submitButton.disabled = true;
+        showMessage(message, 'Signing in…');
+        try {
+          const result = await apiRequest('/api/hospital/signin', {
+            method: 'POST',
+            body: JSON.stringify({
+              password: document.getElementById('password').value,
+            }),
+          });
+          showMessage(message, result.message);
+          location.href = '/hospital';
+        } catch (error) {
+          showMessage(message, error.message, true);
+        } finally {
+          submitButton.disabled = false;
+        }
+      });
+    </script>
+  </body>
+</html>
