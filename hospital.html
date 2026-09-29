@@ -45,6 +45,13 @@
           <div id="doctorList" class="doctor-list"></div>
           <p class="switch"><a href="/doctor-register">Register a doctor</a></p>
         </article>
+        <article class="card">
+          <h2>Nurse roster</h2>
+          <p class="muted">Review nurse registrations and approve staff for this hospital.</p>
+          <div id="nurseList" class="doctor-list"></div>
+          <p id="nurseMessage" class="form-message" role="status"></p>
+          <p class="switch"><a href="/nurse-register">Register a nurse</a></p>
+        </article>
       </section>
       <dialog id="removeDoctorDialog" aria-labelledby="removeDoctorTitle">
         <form id="removeDoctorForm">
@@ -92,6 +99,8 @@
       const summaryBox = document.getElementById('summary');
       const doctorSelect = document.getElementById('doctorName');
       const doctorList = document.getElementById('doctorList');
+      const nurseList = document.getElementById('nurseList');
+      const nurseMessage = document.getElementById('nurseMessage');
       const appointmentBody = document.getElementById('hospitalTable');
       const noShowBody = document.getElementById('noShowTable');
       const leaveMessage = document.getElementById('leaveMessage');
@@ -121,10 +130,11 @@
           return;
         }
         hospitalName = session.user.hospitalName;
-        const [summary, appointments, doctors, noShows] = await Promise.all([
+        const [summary, appointments, doctors, nurses, noShows] = await Promise.all([
           apiRequest('/api/hospital-summary'),
           apiRequest('/api/appointments'),
           apiRequest('/api/hospital/doctors'),
+          apiRequest('/api/hospital/nurses'),
           apiRequest('/api/no-shows'),
         ]);
         currentDoctors = doctors;
@@ -197,6 +207,44 @@
           });
           item.append(remove);
           doctorList.append(item);
+        }
+
+        nurseList.replaceChildren();
+        if (!nurses.length) {
+          addText(nurseList, 'p', 'No nurses are registered with this hospital yet.', 'empty');
+        }
+        for (const nurse of nurses) {
+          const item = document.createElement('div');
+          item.className = 'doctor-item';
+          const details = document.createElement('div');
+          addText(details, 'strong', nurse.name);
+          addText(details, 'div', `${nurse.department} · ${nurse.email}`, 'muted');
+          const state = document.createElement('span');
+          state.className = 'badge';
+          state.textContent = nurse.approved ? 'Approved' : 'Pending approval';
+          item.append(details, state);
+          if (!nurse.approved) {
+            const approve = document.createElement('button');
+            approve.type = 'button';
+            approve.textContent = 'Approve';
+            approve.addEventListener('click', async () => {
+              approve.disabled = true;
+              try {
+                const result = await apiRequest(`/api/nurses/${encodeURIComponent(nurse.id)}/approval`, {
+                  method: 'POST',
+                  body: JSON.stringify({ approved: true }),
+                });
+                showMessage(nurseMessage, result.message);
+                await loadHospitalData();
+              } catch (error) {
+                showMessage(nurseMessage, error.message, true);
+              } finally {
+                approve.disabled = false;
+              }
+            });
+            item.append(approve);
+          }
+          nurseList.append(item);
         }
 
         appointmentBody.replaceChildren();
