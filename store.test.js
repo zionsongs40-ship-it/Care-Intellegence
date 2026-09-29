@@ -43,6 +43,14 @@ test('imports legacy JSON records into SQLite and hashes legacy account password
       email: 'admin@example.test',
       password: 'legacy-admin-password',
     }],
+    nurseAccounts: [{
+      id: 'nurse-legacy',
+      name: 'Nurse Legacy',
+      email: 'nurse@example.test',
+      hospitalName: 'City Care Hospital',
+      password: 'legacy-nurse-password',
+      approved: false,
+    }],
     appointments: [{
       id: 5,
       patient: 'Patient Test',
@@ -63,6 +71,8 @@ test('imports legacy JSON records into SQLite and hashes legacy account password
   assert.equal(await verifyPassword('legacy-password', store.doctorAccounts[0]), true);
   assert.equal(store.hospitalAccounts[0].password, undefined);
   assert.equal(await verifyPassword('legacy-admin-password', store.hospitalAccounts[0]), true);
+  assert.equal(store.nurseAccounts[0].password, undefined);
+  assert.equal(await verifyPassword('legacy-nurse-password', store.nurseAccounts[0]), true);
   assert.equal(store.appointments[0].hospitalName, 'City Care Hospital');
   assert.equal(fs.existsSync(databaseFile), true);
 
@@ -70,6 +80,7 @@ test('imports legacy JSON records into SQLite and hashes legacy account password
   saveStore(store);
   assert.equal(fs.readFileSync(legacyFile, 'utf8'), originalLegacyFile);
   assert.equal(loadStore().appointments[0].patient, 'Patient Test');
+  assert.equal(loadStore().nurseAccounts[0].approved, false);
   assert.deepEqual(loadStore().noShows, []);
 });
 
