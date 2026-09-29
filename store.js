@@ -64,6 +64,12 @@ function openDatabase() {
       PRIMARY KEY(role, id),
       UNIQUE(role, email)
     );
+    CREATE TABLE IF NOT EXISTS nurse_accounts (
+      id TEXT PRIMARY KEY,
+      email TEXT NOT NULL UNIQUE,
+      hospital_name TEXT NOT NULL,
+      data TEXT NOT NULL
+    );
     CREATE TABLE IF NOT EXISTS appointments (
       id TEXT PRIMARY KEY,
       doctor_id TEXT,
@@ -108,6 +114,7 @@ function migrateLegacyJson(db) {
     doctors: defaultDoctors,
     doctorAccounts: [],
     hospitalAccounts: [],
+    nurseAccounts: [],
     appointments: [],
   };
   if (fs.existsSync(legacyDataFile)) {
@@ -116,12 +123,14 @@ function migrateLegacyJson(db) {
       doctors: Array.isArray(source.doctors) ? source.doctors : defaultDoctors,
       doctorAccounts: Array.isArray(source.doctorAccounts) ? source.doctorAccounts : [],
       hospitalAccounts: Array.isArray(source.hospitalAccounts) ? source.hospitalAccounts : [],
+      nurseAccounts: Array.isArray(source.nurseAccounts) ? source.nurseAccounts : [],
       appointments: Array.isArray(source.appointments) ? source.appointments : [],
     };
   }
 
   source.doctorAccounts = source.doctorAccounts.map(hashLegacyPassword);
   source.hospitalAccounts = source.hospitalAccounts.map(hashLegacyPassword);
+  source.nurseAccounts = source.nurseAccounts.map(hashLegacyPassword);
   const doctors = source.doctors.map(doctor => {
     const account = source.doctorAccounts.find(item =>
       item.name === doctor.name && item.hospitalName === doctor.hospitalName
@@ -141,7 +150,13 @@ function migrateLegacyJson(db) {
 
   db.exec('BEGIN IMMEDIATE');
   try {
-    insertStore(db, { doctors, doctorAccounts: source.doctorAccounts, hospitalAccounts: source.hospitalAccounts, appointments });
+    insertStore(db, {
+      doctors,
+      doctorAccounts: source.doctorAccounts,
+      hospitalAccounts: source.hospitalAccounts,
+      nurseAccounts: source.nurseAccounts,
+      appointments,
+    });
     db.prepare('INSERT INTO store_meta (key, value) VALUES (?, ?)').run('legacy_json_migrated', new Date().toISOString());
     db.exec('COMMIT');
   } catch (error) {
@@ -158,6 +173,10 @@ function insertStore(db, store) {
   const insertAccount = db.prepare(`
     INSERT INTO accounts (role, id, email, hospital_name, data)
     VALUES (?, ?, ?, ?, ?)
+  `);
+  const insertNurseAccount = db.prepare(`
+    INSERT INTO nurse_accounts (id, email, hospital_name, data)
+    VALUES (?, ?, ?, ?)
   `);
   const insertAppointment = db.prepare(`
     INSERT INTO appointments (id, doctor_id, hospital_name, department, priority, date, time_slot, data)
@@ -185,6 +204,14 @@ function insertStore(db, store) {
   }
   for (const account of store.hospitalAccounts) {
     insertAccount.run('hospital', String(account.id || crypto.randomUUID()), String(account.email || '').toLowerCase(), account.hospitalName || null, encode(account));
+  }
+  for (const account of store.nurseAccounts || []) {
+    insertNurseAccount.run(
+      String(account.id || crypto.randomUUID()),
+      String(account.email || '').toLowerCase(),
+      account.hospitalName,
+      encode(account),
+    );
   }
   for (const appointment of store.appointments) {
     insertAppointment.run(
@@ -219,6 +246,7 @@ function loadStore() {
   const db = openDatabase();
   const doctors = db.prepare('SELECT data FROM doctors ORDER BY rowid').all().map(row => decode(row.data));
   const accounts = db.prepare('SELECT role, data FROM accounts ORDER BY rowid').all();
+  const nurseAccounts = db.prepare('SELECT data FROM nurse_accounts ORDER BY rowid').all().map(row => decode(row.data));
   const appointments = db.prepare('SELECT data FROM appointments ORDER BY rowid').all().map(row => decode(row.data));
   const noShowRows = db.prepare('SELECT id, appointment_id, hospital_name, removed_at, attempts, verified, data FROM no_shows ORDER BY rowid').all();
   const noShows = noShowRows.map(row => {
@@ -238,6 +266,7 @@ function loadStore() {
     doctors,
     doctorAccounts: accounts.filter(account => account.role === 'doctor').map(account => decode(account.data)),
     hospitalAccounts: accounts.filter(account => account.role === 'hospital').map(account => decode(account.data)),
+    nurseAccounts,
     appointments,
     noShows,
   };
@@ -245,10 +274,13 @@ function loadStore() {
 
 function saveStore(store) {
   const db = openDatabase();
+  const nurseAccounts = Array.isArray(store.nurseAccounts)
+    ? store.nurseAccounts
+    : db.prepare('SELECT data FROM nurse_accounts ORDER BY rowid').all().map(row => decode(row.data));
   db.exec('BEGIN IMMEDIATE');
   try {
-    db.exec('DELETE FROM doctors; DELETE FROM accounts; DELETE FROM appointments; DELETE FROM no_shows;');
-    insertStore(db, store);
+    db.exec('DELETE FROM doctors; DELETE FROM accounts; DELETE FROM nurse_accounts; DELETE FROM appointments; DELETE FROM no_shows;');
+    insertStore(db, { ...store, nurseAccounts });
     db.exec('COMMIT');
   } catch (error) {
     db.exec('ROLLBACK');
@@ -334,7 +366,7 @@ function insertDemoData({ doctors, doctorAccounts, hospitalAccounts }) {
       }
     }
 
-    insertStore(db, { doctors, doctorAccounts, hospitalAccounts, appointments: [] });
+    insertStore(db, { doctors, doctorAccounts, hospitalAccounts, nurseAccounts: [], appointments: [] });
     db.exec('COMMIT');
     return true;
   } catch (error) {
