@@ -7,13 +7,13 @@ The home page plays the `LOGO.MP4.mp4` introduction before showing the app. It c
 ## What is included
 
 - Patient registration with age, gender, contact, optional accompanying guardian, selected hospital, symptoms/reason, visit purpose, notes, and a preferred date. Doctor and appointment availability are matched within the chosen hospital.
-- Customer-facing home and booking pages have a persistent help assistant for app guidance, doctor matching, and emergency instructions. From booking, it can collect details, fill the form, and submit only after customer review and confirmation; the on-screen confirmation names the assigned doctor. It is rule-based, not a generative AI or diagnosis service; no SMS provider is configured.
 - Department suggestions for casualty, cardiology, neurology, orthopedics, pediatrics, OB/GYN, oncology, general surgery, and general medicine.
 - Emergency indicators are routed to casualty first and shown with an instruction to seek immediate emergency care. The app does not diagnose or assess clinical urgency.
 - Doctor selection uses availability for the selected weekday and avoids already-booked slots.
 - Hospital and doctor dashboards use server-side, role-scoped sessions. Hospital queues sort emergency cases first; doctors only see appointments assigned to their account.
 - Hospital admins can manage their roster. Marking a doctor on leave attempts to reassign future appointments to another doctor at that hospital; if no suitable open slot exists, the change is rejected rather than silently losing the booking.
 - New doctor registrations are pending until the hospital administrator approves them in the hospital roster. Pending doctors cannot sign in and are excluded from patient booking; existing accounts remain approved unless explicitly marked otherwise. Approved doctors sign in normally. Removing a doctor requires the signed-in hospital administrator's password again, and future appointments must be reassigned first.
+- Nurses can register for the hospital and appear in a hospital-scoped nurse roster. New nurse registrations remain pending until the hospital administrator approves them.
 - Hospital staff can mark patients arrived. After the appointment time plus a 15-minute grace period, unarrived appointments are removed from the active queue, freeing the slot, and added to the hospital's no-show follow-up list. Staff can record call attempts and the patient's reported reason. No SMS or phone calls are sent automatically.
 - Hospital admins can download a hospital-scoped Excel workbook with appointment and no-show follow-up sheets. The workbook contains sensitive patient details; use only on authorized devices and follow the hospital's approved retention and sharing policies.
 - Phone and desktop layouts switch automatically with the browser viewport; no separate mode setting is required.
