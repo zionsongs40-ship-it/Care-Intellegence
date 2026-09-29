@@ -30,6 +30,7 @@ const appointments = store.appointments;
 const doctors = store.doctors;
 const doctorAccounts = store.doctorAccounts;
 const hospitalAccounts = store.hospitalAccounts;
+const nurseAccounts = store.nurseAccounts || [];
 let noShows = store.noShows || [];
 
 app.disable('x-powered-by');
@@ -55,6 +56,7 @@ function createRateLimiter(windowMs, limit, message) {
 const signInLimiter = createRateLimiter(15 * 60 * 1000, 10, 'Too many sign-in attempts. Please wait 15 minutes before trying again.');
 const registrationLimiter = createRateLimiter(60 * 60 * 1000, 5, 'Too many account registration attempts. Please try again later.');
 const doctorRegistrationLimiter = createRateLimiter(60 * 60 * 1000, 5, 'Too many doctor registration attempts. Please try again later.');
+const nurseRegistrationLimiter = createRateLimiter(60 * 60 * 1000, 5, 'Too many nurse registration attempts. Please try again later.');
 const bookingLimiter = createRateLimiter(15 * 60 * 1000, 30, 'Too many booking attempts. Please try again later.');
 const adminActionLimiter = createRateLimiter(15 * 60 * 1000, 10, 'Too many administrator confirmation attempts. Please wait before trying again.');
 
@@ -171,6 +173,7 @@ app.get('/booking', (req, res) => res.sendFile(path.join(__dirname, 'public', 'i
 app.get('/doctor', (req, res) => res.sendFile(path.join(__dirname, 'public', 'doctor.html')));
 app.get('/doctor-login', (req, res) => res.sendFile(path.join(__dirname, 'public', 'doctor-login.html')));
 app.get('/doctor-register', (req, res) => res.sendFile(path.join(__dirname, 'public', 'doctor-register.html')));
+app.get('/nurse-register', (req, res) => res.sendFile(path.join(__dirname, 'public', 'nurse-register.html')));
 app.get('/hospital', (req, res) => res.sendFile(path.join(__dirname, 'public', 'hospital.html')));
 app.get('/hospital-login', (req, res) => res.sendFile(path.join(__dirname, 'public', 'hospital-login.html')));
 app.get('/hospital-register', (req, res) => {
@@ -336,6 +339,18 @@ app.get('/api/hospital/doctors', requireRole('hospital'), (req, res) => {
     }));
 });
 
+app.get('/api/hospital/nurses', requireRole('hospital'), (req, res) => {
+  res.json(nurseAccounts
+    .filter(account => account.hospitalName === req.session.user.hospitalName)
+    .map(account => ({
+      id: account.id,
+      name: account.name,
+      email: account.email,
+      department: account.department,
+      approved: account.approved !== false,
+    })));
+});
+
 app.get('/api/hospitals', (req, res) => {
   const registeredHospitalNames = new Set(hospitalAccounts.map(account => account.hospitalName));
   res.json([...registeredHospitalNames].sort((a, b) => a.localeCompare(b)).map(hospitalName => ({ hospitalName })));
@@ -478,6 +493,57 @@ app.post('/api/doctors/register', doctorRegistrationLimiter, async (req, res) =>
   res.status(201).json({ message: 'Registration submitted. You can sign in after the hospital administrator approves your account.' });
 });
 
+app.post('/api/nurses/register', nurseRegistrationLimiter, async (req, res) => {
+  const body = req.body || {};
+  const name = cleanText(body.name);
+  const email = typeof body.email === 'string' ? body.email.trim().toLowerCase() : '';
+  const password = typeof body.password === 'string' ? body.password : '';
+  const department = cleanText(body.department);
+  const qualifications = cleanText(body.qualifications, 240);
+  const phoneNumber = cleanText(body.phoneNumber, 20);
+  const hospitalName = cleanText(body.hospitalName);
+  const age = Number(body.age);
+  const workExperience = Number(body.workExperience);
+  const gender = body.gender;
+
+  if (!name || !validEmail(email) || password.length < 8 || password.length > 256
+      || !departments.includes(department) || !qualifications || !validPhone(phoneNumber)
+      || !Number.isInteger(age) || age < 18 || age > 100
+      || !Number.isInteger(workExperience) || workExperience < 0 || workExperience > 80
+      || !['Male', 'Female', 'Other', 'Prefer not to say'].includes(gender) || !hospitalName) {
+    return res.status(400).json({ message: 'Check the required nurse registration fields. Passwords need at least 8 characters.' });
+  }
+
+  if (!hospitalAccounts.some(account => account.hospitalName === hospitalName)) {
+    return res.status(400).json({ message: 'Selected hospital is not registered.' });
+  }
+  if (nurseAccounts.some(account => typeof account.email === 'string' && account.email.toLowerCase() === email)) {
+    return res.status(409).json({ message: 'A nurse account already exists for this email.' });
+  }
+
+  const account = {
+    id: crypto.randomUUID(),
+    name,
+    email,
+    passwordHash: await hashPassword(password),
+    department,
+    qualifications,
+    phoneNumber,
+    gender,
+    age,
+    workExperience,
+    hospitalName,
+    approved: false,
+  };
+  if (nurseAccounts.some(item => typeof item.email === 'string' && item.email.toLowerCase() === email)) {
+    return res.status(409).json({ message: 'A nurse account already exists for this email.' });
+  }
+  nurseAccounts.push(account);
+  saveStore({ doctors, doctorAccounts, hospitalAccounts, nurseAccounts, appointments, noShows });
+
+  res.status(201).json({ message: 'Nurse registration submitted. The hospital administrator must approve this account.' });
+});
+
 app.post('/api/doctors/signin', signInLimiter, async (req, res) => {
   const email = typeof req.body?.email === 'string' ? req.body.email.trim().toLowerCase() : '';
   const password = typeof req.body?.password === 'string' ? req.body.password : '';
@@ -519,6 +585,21 @@ app.post('/api/doctors/:id/approval', requireRole('hospital'), (req, res) => {
   doctor.approved = approved;
   saveStore({ doctors, doctorAccounts, hospitalAccounts, appointments, noShows });
   res.json({ message: `${doctor.name} ${approved ? 'approved' : 'rejected'}.`, approved });
+});
+
+app.post('/api/nurses/:id/approval', requireRole('hospital'), (req, res) => {
+  const approved = req.body?.approved;
+  if (typeof approved !== 'boolean') {
+    return res.status(400).json({ message: 'Choose whether to approve or reject this nurse account.' });
+  }
+  const nurse = nurseAccounts.find(account =>
+    account.id === req.params.id && account.hospitalName === req.session.user.hospitalName
+  );
+  if (!nurse) return res.status(404).json({ message: 'Nurse account not found for this hospital.' });
+
+  nurse.approved = approved;
+  saveStore({ doctors, doctorAccounts, hospitalAccounts, nurseAccounts, appointments, noShows });
+  res.json({ message: `${nurse.name} ${approved ? 'approved' : 'rejected'}.`, approved });
 });
 
 app.post('/api/hospital/register', registrationLimiter, async (req, res) => {
