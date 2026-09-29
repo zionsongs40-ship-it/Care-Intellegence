@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Nurse registration | CI Care Intelligence</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <main class="auth-shell">
+      <section class="auth-card" style="width:min(100%, 720px)">
+        <a class="brand" href="/" aria-label="CI Care Intelligence home"><img class="brand-logo" src="/logo.png" alt="" /><span>Care Intelligence · Nurse</span></a>
+        <p class="eyebrow" style="margin-top:24px">Join a hospital team</p>
+        <h1>Nurse registration</h1>
+        <p class="muted">Submit your details for the hospital administrator to review. Your registration remains pending until approved.</p>
+        <form id="registerForm" class="form-grid">
+          <div class="field"><label for="name">Full name</label><input id="name" name="name" autocomplete="name" maxlength="120" required /></div>
+          <div class="field"><label for="email">Work email</label><input id="email" name="email" type="email" autocomplete="email" required /></div>
+          <div class="field"><label for="password">Password</label><input id="password" name="password" type="password" autocomplete="new-password" minlength="8" required /></div>
+          <div class="field"><label for="hospitalName">Hospital</label><select id="hospitalName" name="hospitalName" required><option value="">Loading hospitals…</option></select></div>
+          <div class="field"><label for="department">Department</label><select id="department" name="department" required>
+            <option>Emergency Department (Casualty)</option><option>Cardiology</option><option>Neurology</option><option>Orthopedics</option><option>Pediatrics</option><option>OB/GYN</option><option>Oncology</option><option>General Surgery</option><option>General Medicine</option>
+          </select></div>
+          <div class="field"><label for="qualifications">Nursing qualifications</label><input id="qualifications" name="qualifications" maxlength="240" placeholder="GNM, B.Sc Nursing" required /></div>
+          <div class="field"><label for="phoneNumber">Phone number</label><input id="phoneNumber" name="phoneNumber" type="tel" maxlength="20" required /></div>
+          <div class="field"><label for="gender">Gender</label><select id="gender" name="gender" required><option>Female</option><option>Male</option><option>Other</option><option>Prefer not to say</option></select></div>
+          <div class="field"><label for="age">Age</label><input id="age" name="age" type="number" min="18" max="100" required /></div>
+          <div class="field"><label for="workExperience">Experience (years)</label><input id="workExperience" name="workExperience" type="number" min="0" max="80" required /></div>
+          <div class="field full"><button id="submitButton" type="submit">Submit registration</button></div>
+        </form>
+        <p id="message" class="form-message" role="status"></p>
+        <p class="switch"><a href="/">Return to home</a></p>
+      </section>
+    </main>
+    <script src="/app.js"></script>
+    <script>
+      const form = document.getElementById('registerForm');
+      const message = document.getElementById('message');
+      const submitButton = document.getElementById('submitButton');
+      const hospitalSelect = document.getElementById('hospitalName');
+
+      async function loadHospitals() {
+        try {
+          const hospitals = await apiRequest('/api/hospitals');
+          hospitalSelect.replaceChildren();
+          if (!hospitals.length) {
+            const option = document.createElement('option');
+            option.value = '';
+            option.textContent = 'No registered hospitals yet';
+            hospitalSelect.append(option);
+            showMessage(message, 'A hospital must register before a nurse can join.', true);
+            return;
+          }
+          for (const hospital of hospitals) {
+            const option = document.createElement('option');
+            option.value = hospital.hospitalName;
+            option.textContent = hospital.hospitalName;
+            hospitalSelect.append(option);
+          }
+        } catch (error) {
+          showMessage(message, error.message, true);
+        }
+      }
+
+      form.addEventListener('submit', async event => {
+        event.preventDefault();
+        submitButton.disabled = true;
+        showMessage(message, 'Submitting registration…');
+        try {
+          const formData = new FormData(form);
+          const result = await apiRequest('/api/nurses/register', {
+            method: 'POST',
+            body: JSON.stringify({
+              name: formData.get('name'),
+              email: formData.get('email'),
+              password: formData.get('password'),
+              hospitalName: formData.get('hospitalName'),
+              department: formData.get('department'),
+              qualifications: formData.get('qualifications'),
+              phoneNumber: formData.get('phoneNumber'),
+              gender: formData.get('gender'),
+              age: Number(formData.get('age')),
+              workExperience: Number(formData.get('workExperience')),
+            }),
+          });
+          showMessage(message, result.message);
+          form.reset();
+          await loadHospitals();
+        } catch (error) {
+          showMessage(message, error.message, true);
+        } finally {
+          submitButton.disabled = false;
+        }
+      });
+
+      loadHospitals();
+    </script>
+  </body>
+</html>
