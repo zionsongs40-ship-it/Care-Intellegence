@@ -72,21 +72,16 @@ test('home page introduces CI Care Intelligence and offers the uploaded video', 
   assert.match(html, /href="\/booking#emergency"/);
 });
 
-test('customer pages include the shared help assistant', async () => {
+test('customer pages do not load the removed help assistant', async () => {
   const homeResponse = await fetch(baseUrl);
   const homeHtml = await homeResponse.text();
   const bookingResponse = await fetch(`${baseUrl}/booking`);
   const bookingHtml = await bookingResponse.text();
   assert.equal(homeResponse.status, 200);
   assert.equal(bookingResponse.status, 200);
-  assert.match(homeHtml, /src="\/customer-assistant\.js"/);
-  assert.match(bookingHtml, /src="\/customer-assistant\.js"/);
-  const assistantScript = await fetch(`${baseUrl}/customer-assistant.js`);
-  const assistantScriptText = await assistantScript.text();
-  assert.equal(assistantScript.status, 200);
-  assert.match(assistantScriptText, /Start guided booking/);
-  assert.match(assistantScriptText, /Your assigned doctor is/);
-  assert.match(assistantScriptText, /not medical advice/);
+  assert.doesNotMatch(homeHtml, /customer-assistant/);
+  assert.doesNotMatch(bookingHtml, /customer-assistant/);
+  assert.equal((await fetch(`${baseUrl}/customer-assistant.js`)).status, 404);
 });
 
 test('uploaded introduction video is served as an MP4 asset', async () => {
@@ -191,7 +186,12 @@ test('hospital, doctor, patient, and scheduling flows work with scoped sessions'
   assert.match(hospitalLoginHtml, /id="firstHospitalSetup"/);
   assert.match(hospitalLoginHtml, /Initial setup only/);
   const hospitalDashboardPage = await fetch(`${baseUrl}/hospital`);
-  assert.doesNotMatch(await hospitalDashboardPage.text(), /Register another hospital/);
+  const hospitalDashboardHtml = await hospitalDashboardPage.text();
+  assert.doesNotMatch(hospitalDashboardHtml, /Register another hospital/);
+  assert.match(hospitalDashboardHtml, /Nurse roster/);
+  const nurseRegistrationPage = await fetch(`${baseUrl}/nurse-register`);
+  assert.equal(nurseRegistrationPage.status, 200);
+  assert.match(await nurseRegistrationPage.text(), /Nurse registration/);
 
   const { response: extraHospitalRegistration, body: extraHospitalBody } = await request('/api/hospital/register', {
     method: 'POST',
@@ -257,6 +257,60 @@ test('hospital, doctor, patient, and scheduling flows work with scoped sessions'
   const initialAdminCookie = initialAdminLogin.headers.get('set-cookie').split(';')[0];
   const unauthorizedRoster = await request('/api/hospital/doctors');
   assert.equal(unauthorizedRoster.response.status, 401);
+  const unauthorizedNurseRoster = await request('/api/hospital/nurses');
+  assert.equal(unauthorizedNurseRoster.response.status, 401);
+  const { response: nurseRegistration, body: nurseRegistrationBody } = await request('/api/nurses/register', {
+    method: 'POST',
+    ...jsonBody({
+      name: 'Nurse Example',
+      email: 'nurse@citytest.example',
+      password: 'nurse-password',
+      hospitalName: 'City Test Hospital',
+      department: 'Cardiology',
+      qualifications: 'B.Sc Nursing',
+      phoneNumber: '+1 555 333 4444',
+      gender: 'Other',
+      age: 30,
+      workExperience: 5,
+    }),
+  });
+  assert.equal(nurseRegistration.status, 201);
+  assert.match(nurseRegistrationBody.message, /administrator must approve/i);
+  const duplicateNurseRegistration = await request('/api/nurses/register', {
+    method: 'POST',
+    ...jsonBody({
+      name: 'Nurse Duplicate',
+      email: 'NURSE@CITYTEST.EXAMPLE',
+      password: 'nurse-password',
+      hospitalName: 'City Test Hospital',
+      department: 'Cardiology',
+      qualifications: 'B.Sc Nursing',
+      phoneNumber: '+1 555 333 4444',
+      gender: 'Other',
+      age: 30,
+      workExperience: 5,
+    }),
+  });
+  assert.equal(duplicateNurseRegistration.response.status, 409);
+  const { body: pendingNurses } = await request('/api/hospital/nurses', {
+    headers: { Cookie: initialAdminCookie },
+  });
+  assert.equal(pendingNurses.length, 1);
+  assert.equal(pendingNurses[0].approved, false);
+  const { response: nurseApproval } = await request(
+    `/api/nurses/${encodeURIComponent(pendingNurses[0].id)}/approval`,
+    {
+      method: 'POST',
+      headers: { Cookie: initialAdminCookie, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ approved: true }),
+    },
+  );
+  assert.equal(nurseApproval.status, 200);
+  const { body: approvedNurses } = await request('/api/hospital/nurses', {
+    headers: { Cookie: initialAdminCookie },
+  });
+  assert.equal(approvedNurses[0].approved, true);
+  assert.equal(approvedNurses[0].name, 'Nurse Example');
   const { body: pendingRoster } = await request('/api/hospital/doctors', {
     headers: { Cookie: initialAdminCookie },
   });
